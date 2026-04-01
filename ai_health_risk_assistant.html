@@ -1,0 +1,323 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#1D9E75;--accent-light:#E1F5EE;--danger:#E24B4A;--danger-light:#FCEBEB;
+  --warn:#BA7517;--warn-light:#FAEEDA;--text1:var(--color-text-primary);--text2:var(--color-text-secondary);
+  --bg1:var(--color-background-primary);--bg2:var(--color-background-secondary);
+  --border:var(--color-border-tertiary);
+}
+body{font-family:'DM Sans',sans-serif;padding:1.5rem 1rem}
+h1{font-family:'DM Serif Display',serif;font-size:26px;font-weight:400;color:var(--text1);margin-bottom:4px}
+.sub{font-size:14px;color:var(--text2);margin-bottom:1.5rem;line-height:1.5}
+.steps{display:flex;gap:8px;margin-bottom:1.5rem}
+.step{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);padding:5px 12px;border-radius:20px;border:0.5px solid var(--border);background:var(--bg2);transition:.2s}
+.step.active{background:var(--accent-light);color:#085041;border-color:#5DCAA5;font-weight:500}
+.step.done{background:#E1F5EE;color:#085041}
+.step-dot{width:18px;height:18px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--text2);flex-shrink:0}
+.step.active .step-dot{background:var(--accent);color:white}
+.step.done .step-dot{background:#1D9E75;color:white}
+
+.card{background:var(--bg1);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem}
+.section-label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:10px}
+.symptom-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.chip{padding:5px 12px;border-radius:20px;font-size:13px;cursor:pointer;border:0.5px solid var(--border);background:var(--bg2);color:var(--text1);transition:.15s}
+.chip:hover{border-color:#5DCAA5;background:var(--accent-light);color:#085041}
+.chip.selected{background:var(--accent);color:white;border-color:var(--accent)}
+textarea{width:100%;padding:10px 14px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg1);color:var(--text1);font-family:'DM Sans',sans-serif;font-size:14px;resize:vertical;min-height:80px;line-height:1.6}
+textarea:focus{outline:none;border-color:#5DCAA5;box-shadow:0 0 0 3px rgba(29,158,117,.1)}
+textarea::placeholder{color:var(--text2)}
+.meta-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+select,input[type=number]{width:100%;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg1);color:var(--text1);font-family:'DM Sans',sans-serif;font-size:14px}
+select:focus,input[type=number]:focus{outline:none;border-color:#5DCAA5}
+.meta-label{font-size:12px;color:var(--text2);margin-bottom:4px}
+.btn{width:100%;padding:11px 20px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer;margin-top:1rem;transition:.2s}
+.btn:hover{background:#0F6E56}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-outline{background:transparent;border:0.5px solid var(--border);color:var(--text1)}
+.btn-outline:hover{border-color:#5DCAA5;color:#085041;background:var(--accent-light)}
+.loading{display:flex;align-items:center;gap:10px;padding:1rem 0;color:var(--text2);font-size:14px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none}
+.risk-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:500}
+.risk-low{background:#E1F5EE;color:#085041}
+.risk-medium{background:#FAEEDA;color:#633806}
+.risk-high{background:#FCEBEB;color:#501313}
+.risk-meter{width:100%;height:10px;border-radius:5px;background:var(--bg2);margin:8px 0;overflow:hidden}
+.risk-fill{height:100%;border-radius:5px;transition:width 1s cubic-bezier(.4,0,.2,1)}
+.explain-block{background:var(--bg2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;margin:8px 0;font-size:13px;color:var(--text1);line-height:1.6}
+.tag-row{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.tag{padding:3px 10px;border-radius:12px;font-size:12px;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border)}
+.tag.detected{background:var(--accent-light);color:#085041;border-color:#5DCAA5}
+.suggest-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)}
+.suggest-item:last-child{border:none}
+.suggest-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.si-green{background:#E1F5EE;color:#085041}
+.si-amber{background:#FAEEDA;color:#633806}
+.si-red{background:#FCEBEB;color:#501313}
+.suggest-text{font-size:13px;color:var(--text1);line-height:1.5}
+.suggest-label{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+#result-area{margin-top:1rem}
+.nlp-box{background:var(--bg2);border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.7;color:var(--text1);font-family:monospace}
+.nlp-box span.kw{background:var(--accent-light);color:#085041;border-radius:3px;padding:0 3px}
+</style>
+
+<h1>Health Risk Assistant</h1>
+<p class="sub">Describe your symptoms in plain language — our AI will analyze and explain the potential risks step by step.</p>
+
+<div class="steps">
+  <div class="step active" id="step1"><div class="step-dot">1</div> Describe symptoms</div>
+  <div class="step" id="step2"><div class="step-dot">2</div> NLP analysis</div>
+  <div class="step" id="step3"><div class="step-dot">3</div> Risk prediction</div>
+  <div class="step" id="step4"><div class="step-dot">4</div> Suggestions</div>
+</div>
+
+<div id="input-section" class="card">
+  <div class="section-label">Quick symptom picker</div>
+  <div class="symptom-chips">
+    <div class="chip" onclick="toggleChip(this)">Headache</div>
+    <div class="chip" onclick="toggleChip(this)">Fever</div>
+    <div class="chip" onclick="toggleChip(this)">Chest pain</div>
+    <div class="chip" onclick="toggleChip(this)">Fatigue</div>
+    <div class="chip" onclick="toggleChip(this)">Shortness of breath</div>
+    <div class="chip" onclick="toggleChip(this)">Nausea</div>
+    <div class="chip" onclick="toggleChip(this)">Dizziness</div>
+    <div class="chip" onclick="toggleChip(this)">Cough</div>
+    <div class="chip" onclick="toggleChip(this)">Back pain</div>
+    <div class="chip" onclick="toggleChip(this)">Joint pain</div>
+    <div class="chip" onclick="toggleChip(this)">Sore throat</div>
+    <div class="chip" onclick="toggleChip(this)">Stomach ache</div>
+  </div>
+  <div class="section-label">Or describe in your own words</div>
+  <textarea id="symptom-text" placeholder="e.g. I've had a dull headache for 3 days, feel tired all the time, and notice my heart beating fast when I climb stairs..."></textarea>
+  <div class="meta-row">
+    <div>
+      <div class="meta-label">Age</div>
+      <input type="number" id="age" placeholder="Years" min="1" max="120" value="35">
+    </div>
+    <div>
+      <div class="meta-label">Biological sex</div>
+      <select id="sex">
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+        <option value="other">Other / prefer not</option>
+      </select>
+    </div>
+    <div>
+      <div class="meta-label">Duration</div>
+      <select id="duration">
+        <option value="hours">Hours</option>
+        <option value="days">1–3 days</option>
+        <option value="week">About a week</option>
+        <option value="weeks">2–4 weeks</option>
+        <option value="months">Months+</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn" id="analyze-btn" onclick="runAnalysis()">Analyze my symptoms →</button>
+</div>
+
+<div id="loading-area" class="hidden">
+  <div class="loading"><div class="spinner"></div><span id="loading-msg">Processing your symptoms with NLP...</span></div>
+</div>
+
+<div id="result-area" class="hidden">
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="section-label">Step 2 — NLP analysis</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Symptoms and keywords detected in your description:</div>
+    <div id="nlp-tags" class="tag-row"></div>
+    <div id="nlp-parsed" class="nlp-box" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="section-label">Step 3 — Risk prediction</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div id="risk-badge"></div>
+      <div id="risk-score" style="font-size:13px;color:var(--text2)"></div>
+    </div>
+    <div class="risk-meter"><div class="risk-fill" id="risk-bar" style="width:0%"></div></div>
+    <div id="risk-explanation" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="section-label">Step 4 — Recommendations</div>
+    <div id="suggestions"></div>
+  </div>
+
+  <div style="font-size:12px;color:var(--text2);padding:0.5rem 0;line-height:1.6;border-top:0.5px solid var(--border);margin-top:4px">
+    This tool is for educational purposes only and does not constitute medical advice. Always consult a qualified healthcare professional for diagnosis and treatment.
+  </div>
+
+  <button class="btn btn-outline" onclick="resetAll()" style="margin-top:10px">Analyze new symptoms</button>
+</div>
+
+<script>
+function toggleChip(el){
+  el.classList.toggle('selected');
+  syncChipsToText();
+}
+function syncChipsToText(){
+  const sel=[...document.querySelectorAll('.chip.selected')].map(c=>c.textContent);
+  const existing=document.getElementById('symptom-text').value.trim();
+  if(sel.length>0&&!existing){
+    document.getElementById('symptom-text').placeholder='Add more details here (optional)...';
+  }
+}
+function getSymptoms(){
+  const chips=[...document.querySelectorAll('.chip.selected')].map(c=>c.textContent);
+  const text=document.getElementById('symptom-text').value.trim();
+  return {chips,text,combined:[...chips,text].filter(Boolean).join('. ')};
+}
+
+const loadingMessages=[
+  "Processing your symptoms with NLP...",
+  "Extracting medical keywords...",
+  "Running risk prediction model...",
+  "Generating explanation..."
+];
+
+async function runAnalysis(){
+  const {chips,text,combined}=getSymptoms();
+  if(!combined){alert('Please select or describe at least one symptom.');return;}
+  const age=document.getElementById('age').value||'unknown';
+  const sex=document.getElementById('sex').value;
+  const duration=document.getElementById('duration').value;
+
+  document.getElementById('input-section').classList.add('hidden');
+  document.getElementById('loading-area').classList.remove('hidden');
+  document.getElementById('result-area').classList.add('hidden');
+
+  let msgIdx=0;
+  const ticker=setInterval(()=>{
+    msgIdx=(msgIdx+1)%loadingMessages.length;
+    document.getElementById('loading-msg').textContent=loadingMessages[msgIdx];
+  },1800);
+
+  setStep(2);
+
+  const prompt=`You are an AI health risk assistant. Analyze the following patient information and provide a structured JSON response.
+
+Patient info:
+- Symptoms described: "${combined}"
+- Age: ${age}
+- Sex: ${sex}
+- Duration: ${duration}
+
+Respond ONLY with a valid JSON object (no markdown, no backticks) with this exact structure:
+{
+  "nlp": {
+    "detected_keywords": ["keyword1", "keyword2", ...],
+    "symptom_summary": "2-3 sentence plain-language summary of what was described",
+    "parsed_highlights": "The original symptom text with <span class='kw'>keyword</span> wrapping around key medical terms (use only teal highlighting)"
+  },
+  "risk": {
+    "level": "low" | "medium" | "high",
+    "score": 0-100,
+    "primary_concern": "Main potential health concern in plain language",
+    "explanation": "2-3 sentences explaining WHY this risk level was assigned, citing the specific symptoms",
+    "confidence": "low" | "medium" | "high",
+    "reasoning_steps": ["step1", "step2", "step3"]
+  },
+  "suggestions": [
+    {"priority": "urgent" | "important" | "general", "icon": "🏥" | "💊" | "🛌" | "🥗" | "🚶" | "💧", "title": "short title", "detail": "1-2 sentence detail"},
+    ...3-5 suggestions total...
+  ]
+}`;
+
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:1000,
+        messages:[{role:"user",content:prompt}]
+      })
+    });
+    const data=await res.json();
+    const raw=data.content.map(i=>i.text||"").join("");
+    const clean=raw.replace(/```json|```/g,"").trim();
+    const parsed=JSON.parse(clean);
+    clearInterval(ticker);
+    renderResults(parsed);
+  }catch(e){
+    clearInterval(ticker);
+    document.getElementById('loading-area').classList.add('hidden');
+    document.getElementById('input-section').classList.remove('hidden');
+    setStep(1);
+    alert("Something went wrong. Please try again.");
+    console.error(e);
+  }
+}
+
+function renderResults(d){
+  document.getElementById('loading-area').classList.add('hidden');
+
+  const nlp=d.nlp;
+  const tags=document.getElementById('nlp-tags');
+  tags.innerHTML='';
+  (nlp.detected_keywords||[]).forEach(kw=>{
+    const t=document.createElement('div');
+    t.className='tag detected';t.textContent=kw;tags.appendChild(t);
+  });
+  document.getElementById('nlp-parsed').innerHTML=
+    `<span style="color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px">Summary: </span>`+
+    `<span style="font-family:'DM Sans',sans-serif">${nlp.symptom_summary||''}</span>`;
+
+  const risk=d.risk;
+  const level=risk.level||'medium';
+  const score=Math.min(100,Math.max(0,risk.score||50));
+  const badge=document.getElementById('risk-badge');
+  badge.innerHTML=`<span class="risk-badge risk-${level}">${level.toUpperCase()} RISK</span>`;
+  document.getElementById('risk-score').textContent=`Confidence: ${risk.confidence||'medium'}`;
+  const bar=document.getElementById('risk-bar');
+  const color=level==='high'?'#E24B4A':level==='medium'?'#EF9F27':'#1D9E75';
+  bar.style.background=color;
+  setTimeout(()=>bar.style.width=score+'%',100);
+
+  const expl=document.getElementById('risk-explanation');
+  let html=`<div class="explain-block"><strong style="font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text2)">Primary concern</strong><br>${risk.primary_concern||''}</div>`;
+  html+=`<div style="font-size:13px;color:var(--text1);margin:8px 0;line-height:1.6">${risk.explanation||''}</div>`;
+  if(risk.reasoning_steps&&risk.reasoning_steps.length){
+    html+=`<div style="font-size:12px;color:var(--text2);margin-top:8px;font-weight:500;text-transform:uppercase;letter-spacing:.04em">How the model reasoned:</div>`;
+    risk.reasoning_steps.forEach((s,i)=>{
+      html+=`<div style="display:flex;gap:8px;margin-top:6px;font-size:13px;color:var(--text1)"><span style="min-width:18px;height:18px;border-radius:50%;background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:var(--text2)">${i+1}</span><span>${s}</span></div>`;
+    });
+  }
+  expl.innerHTML=html;
+
+  const sugg=document.getElementById('suggestions');
+  sugg.innerHTML='';
+  (d.suggestions||[]).forEach(s=>{
+    const cls=s.priority==='urgent'?'si-red':s.priority==='important'?'si-amber':'si-green';
+    sugg.innerHTML+=`<div class="suggest-item">
+      <div class="suggest-icon ${cls}">${s.icon||'+'}</div>
+      <div><div class="suggest-label">${s.priority}</div>
+      <div class="suggest-text"><strong>${s.title}</strong> — ${s.detail}</div></div>
+    </div>`;
+  });
+
+  document.getElementById('result-area').classList.remove('hidden');
+  setStep(4);
+}
+
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    const el=document.getElementById('step'+i);
+    el.classList.remove('active','done');
+    if(i<n)el.classList.add('done');
+    else if(i===n)el.classList.add('active');
+    el.querySelector('.step-dot').textContent=i<n?'✓':i;
+  }
+}
+function resetAll(){
+  document.querySelectorAll('.chip.selected').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('symptom-text').value='';
+  document.getElementById('result-area').classList.add('hidden');
+  document.getElementById('input-section').classList.remove('hidden');
+  setStep(1);
+}
+</script>
