@@ -294,6 +294,11 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   user-select: none;
+  /* Reset browser button defaults */
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  line-height: 1.4;
 }
 
 .chip:hover {
@@ -726,7 +731,6 @@ code {
   margin-bottom: var(--space-md);
 }
 
-.reasoning-steps { }
 
 .reasoning-step {
   display: flex;

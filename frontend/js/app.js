@@ -37,14 +37,25 @@ const analyzeBtn     = document.getElementById('analyze-btn');
 // the status dot in the header
 // =============================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Character counter for textarea
+  // ---- Chip toggle (event delegation) ----
+  // Instead of attaching a listener to every chip button,
+  // we attach ONE listener to the parent #chip-grid.
+  // When any chip is clicked, the event "bubbles up" to the grid.
+  // We check if the clicked element is a .chip and toggle it.
+  document.getElementById('chip-grid').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    chip.classList.toggle('selected');
+  });
+
+  // ---- Character counter for textarea ----
   const textarea  = document.getElementById('symptom-text');
   const charCount = document.getElementById('char-count');
   textarea.addEventListener('input', () => {
     charCount.textContent = textarea.value.length;
   });
 
-  // Check backend health
+  // ---- Check backend health ----
   await refreshHealthStatus();
 });
 
