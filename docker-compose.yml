@@ -1,0 +1,117 @@
+# ============================================================
+# docker-compose.yml — Run Everything With One Command
+# ============================================================
+#
+# What is Docker Compose?
+#   Compose lets you define and run MULTI-CONTAINER apps.
+#   Instead of running two docker run commands and manually
+#   linking them, you define everything in this one file
+#   and start it all with: docker compose up
+#
+# Services defined here:
+#   api      — FastAPI backend  (port 8000)
+#   frontend — nginx + HTML/JS  (port 3000)
+#
+# How containers talk to each other:
+#   Docker Compose creates a private network called "health-net".
+#   Containers can reach each other by SERVICE NAME as hostname.
+#   So the frontend calls http://api:8000 — not localhost:8000.
+#   (But from your browser, you still use localhost:8000)
+#
+# Usage:
+#   Start everything:   docker compose up
+#   Start background:   docker compose up -d
+#   View logs:          docker compose logs -f
+#   Stop everything:    docker compose down
+#   Rebuild images:     docker compose up --build
+# ============================================================
+
+
+services:
+
+  # ---- FastAPI Backend ----
+  api:
+    build:
+      context: ./health_risk_api   # folder containing the Dockerfile
+      dockerfile: Dockerfile
+    container_name: health-risk-api
+
+    ports:
+      # "host_port:container_port"
+      # Your browser hits localhost:8000
+      # Docker routes it to port 8000 inside the container
+      - "8000:8000"
+
+    environment:
+      # Pass environment variables into the container.
+      # These override anything in a .env file inside the container.
+      # ANTHROPIC_API_KEY is read from YOUR machine's environment.
+      # Set it first: export ANTHROPIC_API_KEY=sk-ant-...
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+
+    volumes:
+      # Mount the saved_models folder so the trained model
+      # PERSISTS between container restarts.
+      # Without this, Docker rebuilds the model every time.
+      - ml_models:/app/app/ml/saved_models
+
+    networks:
+      - health-net
+
+    restart: unless-stopped   # auto-restart if it crashes
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s    # give extra time for model training on first start
+
+    # Resource limits — prevents one container eating all memory
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  # ---- Static Frontend ----
+  frontend:
+    build:
+      context: ./health_risk_frontend
+      dockerfile: Dockerfile
+    container_name: health-risk-frontend
+
+    ports:
+      - "3000:80"   # nginx listens on 80, we expose as 3000
+
+    networks:
+      - health-net
+
+    # Frontend depends on API being healthy before it starts
+    depends_on:
+      api:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+# ---- Named Volumes ----
+# Volumes persist data between container restarts.
+# ml_models stores the trained RandomForest model file.
+volumes:
+  ml_models:
+    driver: local
+
+# ---- Networks ----
+# Private network so containers can talk to each other.
+# Isolated from other Docker networks on your machine.
+networks:
+  health-net:
+    driver: bridge
