@@ -77,29 +77,48 @@ def _load_model():
 # This is the "vocabulary" that connects NLP output to ML input.
 KEYWORD_TO_FEATURE: Dict[str, str] = {
     "chest pain":             "has_chest_pain",
-    "chest tightness":        "has_chest_pain",       # treated as same feature
+    "chest tightness":        "has_chest_pain",
+    "chest pressure":         "has_chest_pain",
+    "exertional chest pain":  "has_chest_pain",
+    "progressive chest pain": "has_chest_pain",
     "shortness of breath":    "has_shortness_of_breath",
     "breathlessness":         "has_shortness_of_breath",
     "difficulty breathing":   "has_shortness_of_breath",
+    "exertional dyspnoea":    "has_shortness_of_breath",
+    "resting dyspnoea":       "has_shortness_of_breath",
+    "progressive dyspnoea":   "has_shortness_of_breath",
+    "breathless":             "has_shortness_of_breath",
     "palpitations":           "has_palpitations",
     "rapid heartbeat":        "has_palpitations",
+    "exertional palpitations":"has_palpitations",
+    "exertional syncope":     "has_palpitations",
+    "heart pounding":         "has_palpitations",
+    "skipped beats":          "has_palpitations",
     "irregular heartbeat":    "has_irregular_heartbeat",
     "radiating":              "has_radiating_pain",
+    "radiating pain":         "has_radiating_pain",
+    "left arm pain":          "has_radiating_pain",
+    "jaw pain":               "has_radiating_pain",
     "confusion":              "has_confusion",
     "slurred speech":         "has_slurred_speech",
     "seizure":                "has_seizure",
     "fainting":               "has_fainting",
+    "orthostatic dizziness":  "has_fainting",
     "sudden":                 "has_sudden_onset",
     "sudden onset":           "has_sudden_onset",
+    "thunderclap headache":   "has_sudden_onset",
     "blood in stool":         "has_blood_in_stool",
     "rectal bleeding":        "has_blood_in_stool",
     "blood in urine":         "has_blood_in_urine",
     "weight loss":            "has_severe_weight_loss",
+    "severe weight loss":     "has_severe_weight_loss",
     "fever":                  "has_fever",
     "high fever":             "has_high_fever",
     "night sweats":           "has_night_sweats",
+    "chills":                 "has_night_sweats",
     "dizziness":              "has_dizziness",
     "vertigo":                "has_dizziness",
+    "lightheadedness":        "has_dizziness",
     "vomiting":               "has_vomiting",
     "abdominal pain":         "has_abdominal_pain",
     "stomach ache":           "has_stomach_ache",
@@ -155,35 +174,43 @@ def extract_features(
     severity_indicators: List[str],
     duration: str,
     age: Optional[int],
+    severity_boost: int = 0,
+    contexts: Optional[List[str]] = None,
 ) -> Tuple[np.ndarray, Dict[str, float]]:
     """
     Convert NLP output into a numeric feature vector.
-
-    Returns:
-      feature_vector: numpy array of shape (1, n_features)
-                      ready to pass to model.predict()
-      feature_dict:   dict of feature_name → value
-                      used for explainability in the API response
+    Now accepts severity_boost (from contextual inference rules)
+    and contexts (exertional, at_rest, etc.) for richer features.
     """
-    # --- Start with all boolean features = 0 ---
+    contexts = contexts or []
     feat = {name: 0 for name in SYMPTOM_FEATURES}
 
-    # --- Map keywords to boolean features ---
-    activated = set()
+    # Map keywords → boolean features
     for kw in keywords:
         feat_name = KEYWORD_TO_FEATURE.get(kw.lower())
         if feat_name and feat_name in feat:
             feat[feat_name] = 1
-            activated.add(feat_name)
 
-    # --- Compute numeric features ---
     symptom_count = sum(feat.values())
 
-    # Max severity score from detected indicators
+    # Severity score from indicators
     severity_score = 0
     for indicator in severity_indicators:
         s = SEVERITY_TO_SCORE.get(indicator.lower(), 0)
         severity_score = max(severity_score, s)
+
+    # Apply boost from inference rules (e.g. chest pain + exertional → +2)
+    severity_score = min(3, severity_score + severity_boost)
+
+    # Context modifiers: exertional symptoms are higher risk
+    is_exertional = 1 if "exertional" in contexts else 0
+    is_at_rest    = 1 if "at_rest" in contexts else 0
+    is_sudden     = 1 if "sudden_onset" in contexts else 0
+
+    # If exertional context present with cardiac keywords, boost symptom count
+    # to reflect the higher clinical significance
+    if is_exertional and (feat.get("has_chest_pain") or feat.get("has_shortness_of_breath")):
+        symptom_count = min(symptom_count + 2, 15)  # cap at 15
 
     duration_code = DURATION_TO_CODE.get(duration, 1)
     age_val = float(age) if age else 40.0
@@ -198,12 +225,11 @@ def extract_features(
         "has_any_severe_indicator": 1 if severity_score >= 2 else 0,
     }
 
-    # Combine in exact same order as ALL_FEATURE_NAMES
     full_feat = {**feat, **numeric}
     feature_vector = np.array(
         [full_feat[name] for name in ALL_FEATURE_NAMES],
         dtype=float
-    ).reshape(1, -1)  # shape (1, 36) — one sample
+    ).reshape(1, -1)
 
     return feature_vector, full_feat
 
@@ -213,6 +239,8 @@ def predict(
     severity_indicators: List[str],
     duration: str,
     age: Optional[int],
+    severity_boost: int = 0,
+    contexts: Optional[List[str]] = None,
 ) -> Dict:
     """
     Full prediction pipeline.
@@ -243,8 +271,12 @@ def predict(
                 "error": str(e),
             }
 
-    # Build feature vector
-    X, feat_dict = extract_features(keywords, severity_indicators, duration, age)
+    # Build feature vector (now includes severity_boost and contexts)
+    X, feat_dict = extract_features(
+        keywords, severity_indicators, duration, age,
+        severity_boost=severity_boost,
+        contexts=contexts,
+    )
 
     # --- Prediction ---
     # predict() returns the most likely class: 0, 1, or 2
