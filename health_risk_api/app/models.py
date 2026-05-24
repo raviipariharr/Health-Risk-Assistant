@@ -1,15 +1,18 @@
 """
 DATA MODELS — Pydantic Schemas
 ================================
-Pydantic is FastAPI's secret weapon for data validation.
+Extended with vital signs and lab values so the ML pipeline
+can use real clinical measurements, not just symptom keywords.
 
-When a request comes in, FastAPI automatically:
-  1. Parses the JSON body
-  2. Validates each field (type, range, required/optional)
-  3. Returns a clear 422 error if something is wrong
-  4. Converts to a Python object you can use directly
+New fields added to SymptomRequest:
+  Vitals  — blood pressure (systolic/diastolic), heart rate, SpO2,
+             respiratory rate, body temperature
+  Labs    — total cholesterol, LDL, HDL, triglycerides, blood glucose
+             (fasting), HbA1c, BMI
 
-Think of these as "contracts" between the frontend and backend.
+Each field is Optional — the frontend collects only what is
+relevant to the user's selected focus area (cardiac, metabolic, etc.)
+The ML feature extractor handles None values gracefully.
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -17,72 +20,70 @@ from typing import Optional, List
 from enum import Enum
 
 
-# ---- Enums: fixed sets of allowed values ----
-
 class BiologicalSex(str, Enum):
-    male = "male"
+    male   = "male"
     female = "female"
-    other = "other"
+    other  = "other"
 
 class SymptomDuration(str, Enum):
-    hours = "hours"
-    days = "days"
-    week = "week"
-    weeks = "weeks"
+    hours  = "hours"
+    days   = "days"
+    week   = "week"
+    weeks  = "weeks"
     months = "months"
 
 class RiskLevel(str, Enum):
-    low = "low"
+    low    = "low"
     medium = "medium"
-    high = "high"
+    high   = "high"
 
 class SuggestionPriority(str, Enum):
-    urgent = "urgent"
+    urgent    = "urgent"
     important = "important"
-    general = "general"
+    general   = "general"
 
 
-# ---- REQUEST model: what the frontend sends ----
+# ---- REQUEST model ----
+
+class VitalsInput(BaseModel):
+    """Real-time vital signs entered by the user."""
+    systolic_bp:        Optional[int]   = Field(None, ge=50,  le=300,  description="Systolic blood pressure (mmHg)")
+    diastolic_bp:       Optional[int]   = Field(None, ge=30,  le=200,  description="Diastolic blood pressure (mmHg)")
+    heart_rate:         Optional[int]   = Field(None, ge=20,  le=300,  description="Heart rate (bpm)")
+    spo2:               Optional[float] = Field(None, ge=50.0,le=100.0,description="Oxygen saturation (%)")
+    respiratory_rate:   Optional[int]   = Field(None, ge=5,   le=60,   description="Breaths per minute")
+    temperature_celsius:Optional[float] = Field(None, ge=30.0,le=45.0, description="Body temperature (°C)")
+    weight_kg:          Optional[float] = Field(None, ge=1.0, le=400.0,description="Body weight (kg)")
+    height_cm:          Optional[float] = Field(None, ge=50.0,le=250.0,description="Height (cm)")
+
+
+class LabsInput(BaseModel):
+    """Laboratory / blood test values entered by the user."""
+    total_cholesterol:  Optional[float] = Field(None, ge=0.0, le=20.0,  description="Total cholesterol (mmol/L)")
+    ldl_cholesterol:    Optional[float] = Field(None, ge=0.0, le=15.0,  description="LDL cholesterol (mmol/L)")
+    hdl_cholesterol:    Optional[float] = Field(None, ge=0.0, le=10.0,  description="HDL cholesterol (mmol/L)")
+    triglycerides:      Optional[float] = Field(None, ge=0.0, le=20.0,  description="Triglycerides (mmol/L)")
+    fasting_glucose:    Optional[float] = Field(None, ge=0.0, le=50.0,  description="Fasting blood glucose (mmol/L)")
+    hba1c:              Optional[float] = Field(None, ge=0.0, le=20.0,  description="HbA1c (%)")
+    creatinine:         Optional[float] = Field(None, ge=0.0, le=200.0, description="Creatinine (µmol/L)")
+    egfr:               Optional[float] = Field(None, ge=0.0, le=200.0, description="eGFR (mL/min/1.73m²)")
+
 
 class SymptomRequest(BaseModel):
-    """
-    This is what the frontend POSTs to /api/v1/analyze
+    symptom_text:   str = Field(..., min_length=1, max_length=1000)
+    selected_chips: List[str] = Field(default=[])
+    age:            Optional[int] = Field(default=None, ge=1, le=120)
+    sex:            BiologicalSex = Field(default=BiologicalSex.other)
+    duration:       SymptomDuration = Field(default=SymptomDuration.days)
+    vitals:         Optional[VitalsInput] = Field(default=None, description="Optional vital signs")
+    labs:           Optional[LabsInput]   = Field(default=None, description="Optional lab results")
+    focus_area:     Optional[str] = Field(default=None, description="cardiac | metabolic | respiratory | general")
 
-    Field(...) means required.
-    Field(default, ...) means optional with a default value.
-    """
-    symptom_text: str = Field(
-        ...,
-        min_length=3,
-        max_length=1000,
-        description="Free-text symptom description"
-    )
-    selected_chips: List[str] = Field(
-        default=[],
-        description="Pre-selected symptom chips from UI"
-    )
-    age: Optional[int] = Field(
-        default=None,
-        ge=1,       # ge = greater than or equal to
-        le=120,     # le = less than or equal to
-        description="Patient age in years"
-    )
-    sex: BiologicalSex = Field(
-        default=BiologicalSex.other,
-        description="Biological sex for risk context"
-    )
-    duration: SymptomDuration = Field(
-        default=SymptomDuration.days,
-        description="How long symptoms have been present"
-    )
-
-    # Custom validator: clean up the text input
     @field_validator("symptom_text")
     @classmethod
     def clean_text(cls, v: str) -> str:
         return v.strip()
 
-    # Computed property: combine chips + text into one string
     @property
     def combined_symptoms(self) -> str:
         parts = self.selected_chips + ([self.symptom_text] if self.symptom_text else [])
@@ -91,39 +92,43 @@ class SymptomRequest(BaseModel):
 
 # ---- RESPONSE sub-models ----
 
+class VitalsInterpretation(BaseModel):
+    """Flagged clinical findings from vitals/labs."""
+    flags:   List[str] = []   # e.g. ["Hypertension Stage 2", "Hyperglycaemia"]
+    summary: str       = ""
+
+
 class NLPResult(BaseModel):
-    """Output of the NLP processing step"""
-    detected_keywords: List[str]
-    symptom_summary: str
-    parsed_highlights: str       # HTML with <span> highlights
-    severity_indicators: List[str]   # words like "severe", "sudden", "persistent"
-    duration_context: str        # normalized duration string
+    detected_keywords:   List[str]
+    symptom_summary:     str
+    parsed_highlights:   str
+    severity_indicators: List[str]
+    duration_context:    str
 
 class RiskPrediction(BaseModel):
-    """Output of the ML + AI risk scoring step"""
-    level: RiskLevel
-    score: int = Field(ge=0, le=100)
+    level:           RiskLevel
+    score:           int = Field(ge=0, le=100)
     primary_concern: str
-    explanation: str
-    confidence: str
+    explanation:     str
+    confidence:      str
     reasoning_steps: List[str]
-    ml_score: Optional[float] = None     # score from local ML model
-    ai_score: Optional[float] = None     # score from LLM
+    ml_score:        Optional[float] = None
+    ai_score:        Optional[float] = None
+    vitals_flags:    List[str] = []
 
 class Suggestion(BaseModel):
-    """A single recommendation"""
     priority: SuggestionPriority
-    icon: str
-    title: str
-    detail: str
+    icon:     str
+    title:    str
+    detail:   str
 
 class AnalysisResponse(BaseModel):
-    """The full response returned to the frontend"""
-    success: bool = True
-    session_id: str                      # unique ID for this analysis
-    nlp: NLPResult
-    risk: RiskPrediction
-    suggestions: List[Suggestion]
+    success:            bool = True
+    session_id:         str
+    nlp:                NLPResult
+    risk:               RiskPrediction
+    suggestions:        List[Suggestion]
+    vitals_summary:     Optional[VitalsInterpretation] = None
     processing_time_ms: Optional[int] = None
     disclaimer: str = (
         "This analysis is for informational purposes only and does not "
@@ -131,7 +136,6 @@ class AnalysisResponse(BaseModel):
     )
 
 class ErrorResponse(BaseModel):
-    """Returned when something goes wrong"""
     success: bool = False
-    error: str
-    detail: Optional[str] = None
+    error:   str
+    detail:  Optional[str] = None

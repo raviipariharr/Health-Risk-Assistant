@@ -1,80 +1,51 @@
 """
-STEP 5: CLASSIFIER — Feature Extraction + Prediction
-======================================================
-This is the bridge between NLP output and the ML model.
+CLASSIFIER — Feature Extraction + Prediction (Extended)
+=========================================================
+Now accepts vitals/lab ML features from the vitals interpreter
+and merges them with the keyword-derived features before running
+the RandomForest pipeline.
 
-Two responsibilities:
-  1. extract_features()
-     Converts NLP processor output (keyword list) into a
-     numeric feature vector that the model can understand.
-     
-     NLP gives us: ["chest pain", "shortness of breath", "dizziness"]
-     Model needs:  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, ..., 55, 3, 2, 0, 0, 1, 0]
-     
-     This translation step is called "feature engineering".
-
-  2. predict()
-     Loads the saved model (once, on first call)
-     Runs the feature vector through the pipeline
-     Returns score, risk level, confidence, and explanation
-
-Why load the model once?
-  → joblib.load() reads a file from disk — that's slow.
-  → We cache it in a module-level variable (_model).
-  → Second call returns instantly from memory.
-  → This pattern is called "lazy loading" or "singleton".
+The feature vector now has three layers:
+  1. Symptom boolean features (from NLP keywords)     — SYMPTOM_FEATURES
+  2. Measurement boolean features (from vitals/labs)  — MEASUREMENT_FEATURES
+  3. Numeric composite features                       — NUMERIC_FEATURES
 """
 
 import os
 import json
 import joblib
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Optional, Dict, Tuple
 
 from app.ml.training.dataset import (
-    ALL_FEATURE_NAMES, SYMPTOM_FEATURES, NUMERIC_FEATURES, RISK_LABELS
+    ALL_FEATURE_NAMES, SYMPTOM_FEATURES, MEASUREMENT_FEATURES,
+    NUMERIC_FEATURES, RISK_LABELS
 )
 
-# ---- Paths ----
 MODEL_DIR  = os.path.join(os.path.dirname(__file__), 'saved_models')
 MODEL_PATH = os.path.join(MODEL_DIR, 'risk_classifier.joblib')
 META_PATH  = os.path.join(MODEL_DIR, 'model_metadata.json')
 
-# ---- Module-level cache ----
-# None = not loaded yet
-# Set on first call to predict()
 _model    = None
 _metadata = None
 
 
 def _load_model():
-    """
-    Load the trained pipeline from disk.
-    Called automatically on first prediction.
-    Raises FileNotFoundError if model hasn't been trained yet.
-    """
     global _model, _metadata
-
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(
             f"No trained model found at {MODEL_PATH}.\n"
-            f"Run training first:\n"
-            f"  python -m app.ml.training.train"
+            "Run: python -m app.ml.training.train"
         )
-
     _model = joblib.load(MODEL_PATH)
-
     if os.path.exists(META_PATH):
         with open(META_PATH) as f:
             _metadata = json.load(f)
-
     print(f"[ML] Model loaded: {_metadata.get('model_type')} "
           f"(accuracy={_metadata.get('test_accuracy')})")
 
 
-# ---- Keyword → feature name mapping ----
-# Maps NLP keyword strings to the boolean feature column names.
-# This is the "vocabulary" that connects NLP output to ML input.
+# Keyword → feature name (symptom boolean features)
 KEYWORD_TO_FEATURE: Dict[str, str] = {
     "chest pain":             "has_chest_pain",
     "chest tightness":        "has_chest_pain",
@@ -139,33 +110,34 @@ KEYWORD_TO_FEATURE: Dict[str, str] = {
     "muscle ache":            "has_joint_pain",
     "sore throat":            "has_sore_throat",
     "rash":                   "has_rash",
+    # Vitals-inferred keywords → measurement features
+    "hypertension":           "has_hypertension",
+    "elevated blood pressure":"has_hypertension",
+    "severe hypertension":    "has_hypertensive_crisis",
+    "cardiovascular emergency":"has_hypertensive_crisis",
+    "low blood pressure":     "has_bradycardia",
+    "tachycardia":            "has_tachycardia",
+    "bradycardia":            "has_bradycardia",
+    "cyanosis":               "has_hypoxaemia",
+    "hypoxaemia":             "has_hypoxaemia",
+    "high cholesterol":       "has_high_cholesterol",
+    "elevated cholesterol":   "has_high_cholesterol",
+    "diabetes":               "has_diabetes",
+    "hyperglycaemia":         "has_diabetes",
+    "hypoglycaemia":          "has_diabetes",
+    "kidney failure":         "has_ckd",
+    "chronic kidney disease": "has_ckd",
 }
 
-# Severity text → numeric code
 SEVERITY_TO_SCORE = {
-    "mild": 1,
-    "moderate": 2,
-    "severe": 3,
-    "extreme": 3,
-    "intense": 2,
-    "unbearable": 3,
-    "worst": 3,
-    "excruciating": 3,
-    "persistent": 2,
-    "constant": 2,
-    "worsening": 2,
-    "sudden": 2,
-    "crushing": 3,
-    "stabbing": 2,
+    "mild": 1, "moderate": 2, "severe": 3, "extreme": 3,
+    "intense": 2, "unbearable": 3, "worst": 3, "excruciating": 3,
+    "persistent": 2, "constant": 2, "worsening": 2, "sudden": 2,
+    "crushing": 3, "stabbing": 2,
 }
 
-# Duration code mapping
 DURATION_TO_CODE = {
-    "hours": 0,
-    "days": 1,
-    "week": 2,
-    "weeks": 3,
-    "months": 4,
+    "hours": 0, "days": 1, "week": 2, "weeks": 3, "months": 4,
 }
 
 
@@ -176,44 +148,63 @@ def extract_features(
     age: Optional[int],
     severity_boost: int = 0,
     contexts: Optional[List[str]] = None,
-) -> Tuple[np.ndarray, Dict[str, float]]:
+    vitals_ml_features: Optional[Dict[str, float]] = None,
+) -> Tuple[np.ndarray, Dict]:
     """
-    Convert NLP output into a numeric feature vector.
-    Now accepts severity_boost (from contextual inference rules)
-    and contexts (exertional, at_rest, etc.) for richer features.
+    Build the full feature vector including vitals/lab measurements.
     """
     contexts = contexts or []
-    feat = {name: 0 for name in SYMPTOM_FEATURES}
+    vitals_ml_features = vitals_ml_features or {}
 
-    # Map keywords → boolean features
+    # Start with zero for all boolean symptom features
+    feat: Dict[str, float] = {name: 0.0 for name in SYMPTOM_FEATURES + MEASUREMENT_FEATURES}
+
+    # Map NLP keywords → symptom boolean features
     for kw in keywords:
-        feat_name = KEYWORD_TO_FEATURE.get(kw.lower())
-        if feat_name and feat_name in feat:
-            feat[feat_name] = 1
+        fname = KEYWORD_TO_FEATURE.get(kw.lower())
+        if fname and fname in feat:
+            feat[fname] = 1.0
 
-    symptom_count = sum(feat.values())
+    # Overlay vitals/lab measurement boolean features (these override if set)
+    for mfeat in MEASUREMENT_FEATURES:
+        if mfeat in vitals_ml_features:
+            feat[mfeat] = vitals_ml_features[mfeat]
 
-    # Severity score from indicators
+    symptom_count = sum(feat[f] for f in SYMPTOM_FEATURES)
+
+    # Severity score
     severity_score = 0
     for indicator in severity_indicators:
         s = SEVERITY_TO_SCORE.get(indicator.lower(), 0)
         severity_score = max(severity_score, s)
-
-    # Apply boost from inference rules (e.g. chest pain + exertional → +2)
     severity_score = min(3, severity_score + severity_boost)
 
-    # Context modifiers: exertional symptoms are higher risk
+    # Exertional context boost
     is_exertional = 1 if "exertional" in contexts else 0
-    is_at_rest    = 1 if "at_rest" in contexts else 0
-    is_sudden     = 1 if "sudden_onset" in contexts else 0
-
-    # If exertional context present with cardiac keywords, boost symptom count
-    # to reflect the higher clinical significance
     if is_exertional and (feat.get("has_chest_pain") or feat.get("has_shortness_of_breath")):
-        symptom_count = min(symptom_count + 2, 15)  # cap at 15
+        symptom_count = min(symptom_count + 2, 15)
 
     duration_code = DURATION_TO_CODE.get(duration, 1)
     age_val = float(age) if age else 40.0
+
+    # Vitals / labs composite scores from the interpreter
+    vitals_sev = vitals_ml_features.get("bp_severity", 0)
+    if vitals_ml_features.get("has_hypoxaemia"):
+        vitals_sev += 2
+    if vitals_ml_features.get("has_tachycardia"):
+        vitals_sev += 1
+    vitals_severity = min(3, int(vitals_sev))
+
+    labs_sev = 0
+    if vitals_ml_features.get("has_diabetes"):
+        labs_sev += 2
+    if vitals_ml_features.get("has_high_cholesterol"):
+        labs_sev += 1
+    if vitals_ml_features.get("has_ckd"):
+        labs_sev += 2
+    labs_severity = min(3, labs_sev)
+
+    measurement_count = sum(1 for mf in MEASUREMENT_FEATURES if feat.get(mf, 0) > 0)
 
     numeric = {
         "age":                      age_val,
@@ -223,11 +214,14 @@ def extract_features(
         "is_acute":                 1 if duration_code == 0 else 0,
         "age_over_60":              1 if age_val >= 60 else 0,
         "has_any_severe_indicator": 1 if severity_score >= 2 else 0,
+        "vitals_severity_score":    vitals_severity,
+        "labs_severity_score":      labs_severity,
+        "measurement_count":        measurement_count,
     }
 
     full_feat = {**feat, **numeric}
     feature_vector = np.array(
-        [full_feat[name] for name in ALL_FEATURE_NAMES],
+        [full_feat.get(name, 0.0) for name in ALL_FEATURE_NAMES],
         dtype=float
     ).reshape(1, -1)
 
@@ -241,111 +235,71 @@ def predict(
     age: Optional[int],
     severity_boost: int = 0,
     contexts: Optional[List[str]] = None,
+    vitals_ml_features: Optional[Dict[str, float]] = None,
 ) -> Dict:
-    """
-    Full prediction pipeline.
-    
-    Returns a dict with:
-      - score (0-100)
-      - level ("low" | "medium" | "high")
-      - probabilities { "low": 0.12, "medium": 0.31, "high": 0.57 }
-      - confidence ("low" | "medium" | "high")
-      - top_features: list of (feature_name, value) for active features
-      - model_available: bool
-    """
     global _model
-
-    # Lazy-load the model on first prediction
     if _model is None:
         try:
             _load_model()
         except FileNotFoundError as e:
-            # Model not trained yet — return a graceful fallback
             return {
-                "score": 0,
-                "level": "low",
+                "score": 0, "level": "low",
                 "probabilities": {"low": 1.0, "medium": 0.0, "high": 0.0},
-                "confidence": "low",
-                "top_features": [],
-                "model_available": False,
-                "error": str(e),
+                "confidence": "low", "top_features": [],
+                "model_available": False, "error": str(e),
             }
 
-    # Build feature vector (now includes severity_boost and contexts)
     X, feat_dict = extract_features(
         keywords, severity_indicators, duration, age,
         severity_boost=severity_boost,
         contexts=contexts,
+        vitals_ml_features=vitals_ml_features,
     )
 
-    # --- Prediction ---
-    # predict() returns the most likely class: 0, 1, or 2
     pred_class = int(_model.predict(X)[0])
+    proba = _model.predict_proba(X)[0]
 
-    # predict_proba() returns probabilities for all 3 classes
-    # e.g. [0.08, 0.25, 0.67] → 67% chance high risk
-    proba = _model.predict_proba(X)[0]  # shape (3,)
-
-    # --- Score: weighted average of class probabilities ---
-    # Maps [low=0, med=1, high=2] probs to 0-100 scale
-    # score = (0*p_low + 50*p_med + 100*p_high) is too binary
-    # Better: use the predicted class probability centred on its range
     class_midpoints = [15.0, 50.0, 85.0]
     score = float(sum(p * m for p, m in zip(proba, class_midpoints)))
     score = round(min(100, max(0, score)))
-
     level = RISK_LABELS[pred_class]
 
-    # --- Confidence: how certain is the model? ---
-    # max_prob close to 1.0 = very confident
-    # max_prob close to 0.33 = uncertain (all classes equally likely)
     max_prob = float(proba[pred_class])
-    if max_prob >= 0.75:
-        confidence = "high"
-    elif max_prob >= 0.50:
-        confidence = "medium"
-    else:
-        confidence = "low"
+    confidence = "high" if max_prob >= 0.75 else ("medium" if max_prob >= 0.50 else "low")
 
-    # --- Explainability: which features were active? ---
-    # Get feature importances from the trained Random Forest
     rf = _model.named_steps['classifier']
     importances = rf.feature_importances_
 
-    # Pair each feature with its importance AND whether it was active
     active_features = []
     for i, fname in enumerate(ALL_FEATURE_NAMES):
         val = feat_dict.get(fname, 0)
-        if val > 0:  # only report active features
+        if val > 0:
             active_features.append({
-                "feature": fname,
-                "value": float(val),
+                "feature":    fname,
+                "value":      float(val),
                 "importance": float(round(importances[i], 4)),
             })
-
-    # Sort by importance (highest first)
     active_features.sort(key=lambda x: x["importance"], reverse=True)
 
     return {
-        "score": score,
-        "level": level,
+        "score":         score,
+        "level":         level,
         "probabilities": {
             "low":    float(round(proba[0], 3)),
             "medium": float(round(proba[1], 3)),
             "high":   float(round(proba[2], 3)),
         },
-        "confidence": confidence,
-        "top_features": active_features[:8],  # top 8 active features
-        "model_available": True,
+        "confidence":     confidence,
+        "top_features":   active_features[:8],
+        "model_available":True,
         "metadata": {
             "test_accuracy": _metadata.get("test_accuracy") if _metadata else None,
-            "model_type": _metadata.get("model_type") if _metadata else None,
+            "model_type":    _metadata.get("model_type") if _metadata else None,
         }
     }
 
 
 def get_model_info() -> Dict:
-    """Return metadata about the loaded model. Used by API status endpoint."""
     global _metadata
     if _metadata:
         return _metadata
