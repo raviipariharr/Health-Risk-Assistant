@@ -109,6 +109,39 @@
         </div>
       </div>
 
+      <!-- ===== FOCUS AREA SELECTOR ===== -->
+      <div class="card-block">
+        <label class="field-label">What would you like to check?
+          <span class="optional">(optional — unlocks measurement inputs)</span>
+        </label>
+        <p class="field-hint">Select a focus area to enter your vitals or lab values — the ML model will use them directly.</p>
+        <div class="focus-btn-row" id="focus-btns">
+          <button class="focus-btn" data-focus="cardiac" type="button">
+            <span class="focus-icon" style="pointer-events:none">❤️</span>
+            <span class="focus-label" style="pointer-events:none">Cardiac Health</span>
+            <span class="focus-sub" style="pointer-events:none">BP · HR · Cholesterol · SpO₂</span>
+          </button>
+          <button class="focus-btn" data-focus="metabolic" type="button">
+            <span class="focus-icon" style="pointer-events:none">🩸</span>
+            <span class="focus-label" style="pointer-events:none">Metabolic / Diabetes</span>
+            <span class="focus-sub" style="pointer-events:none">Glucose · HbA1c · BMI · Lipids</span>
+          </button>
+          <button class="focus-btn" data-focus="respiratory" type="button">
+            <span class="focus-icon" style="pointer-events:none">🫁</span>
+            <span class="focus-label" style="pointer-events:none">Respiratory</span>
+            <span class="focus-sub" style="pointer-events:none">SpO₂ · Resp. rate · Temp · HR</span>
+          </button>
+          <button class="focus-btn" data-focus="general" type="button">
+            <span class="focus-icon" style="pointer-events:none">🩺</span>
+            <span class="focus-label" style="pointer-events:none">General Health</span>
+            <span class="focus-sub" style="pointer-events:none">All key vitals & labs</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== MEASUREMENT PANEL (injected by app.js) ===== -->
+      <div id="measurement-panel"></div>
+
       <div class="card-block">
         <label class="field-label" for="symptom-text">Describe in your own words</label>
         <p class="field-hint">Be as specific as you like — location, intensity, when it started</p>
@@ -163,7 +196,7 @@
       </details>
 
       <div class="form-footer">
-        <button class="btn-primary" id="analyze-btn" onclick="handleAnalyze()">
+        <button class="btn-primary" id="analyze-btn" >
           Analyze symptoms
           <span class="btn-arrow">→</span>
         </button>
@@ -200,6 +233,18 @@
 
     <!-- ===== RESULTS ===== -->
     <section class="results-section hidden" id="results-section">
+
+      <!-- Vitals & Labs Findings Card (hidden when no measurements entered) -->
+      <div class="result-card hidden" id="vitals-result-card">
+        <div class="result-card-header">
+          <span class="result-step-badge result-step-badge--meas">Measurements</span>
+          <h2>Vitals &amp; Lab Findings</h2>
+        </div>
+        <div class="result-card-body">
+          <div id="vitals-flags" class="vitals-flags-list"></div>
+          <p class="vitals-summary-text" id="vitals-summary-text"></p>
+        </div>
+      </div>
 
       <!-- NLP Result Card -->
       <div class="result-card" id="nlp-card">

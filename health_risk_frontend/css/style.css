@@ -314,6 +314,192 @@ body {
   font-weight: 500;
 }
 
+/* =============================================
+   FOCUS AREA SELECTOR
+   ============================================= */
+.focus-btn-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.focus-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-border-med);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+}
+
+.focus-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.focus-btn.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(29,158,117,0.12);
+}
+
+.focus-icon  { font-size: 20px; margin-bottom: 4px; line-height: 1; display: block; }
+.focus-label { font-size: 13px; font-weight: 500; color: var(--color-text-1); line-height: 1.3; display: block; }
+.focus-sub   { font-size: 11px; color: var(--color-text-3); line-height: 1.3; display: block; }
+
+.focus-btn.active .focus-label { color: var(--color-accent-dark); }
+.focus-btn.active .focus-sub   { color: var(--color-accent-dark); opacity: 0.75; }
+
+/* =============================================
+   MEASUREMENT PANEL
+   ============================================= */
+.meas-panel {
+  border: 1px solid var(--color-border-med);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+  animation: fadeSlideIn 0.2s ease both;
+}
+
+.meas-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.meas-icon        { font-size: 18px; }
+.meas-title       { font-size: 14px; font-weight: 500; color: var(--color-text-1); flex: 1; }
+.meas-hint-global { font-size: 12px; color: var(--color-text-3); font-style: italic; }
+
+.meas-section-label {
+  padding: 6px var(--space-md);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-3);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.meas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.meas-field {
+  padding: 12px var(--space-md);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.meas-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-2);
+  margin-bottom: 6px;
+}
+
+.meas-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.meas-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-med);
+  background: var(--color-surface);
+  color: var(--color-text-1);
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.meas-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.meas-input.input-warn {
+  border-color: var(--color-medium);
+  background: var(--color-medium-bg);
+}
+
+.meas-input.input-ok {
+  border-color: var(--color-low);
+}
+
+.meas-unit        { font-size: 11px; color: var(--color-text-3); flex-shrink: 0; white-space: nowrap; }
+.meas-hint        { font-size: 11px; color: var(--color-text-3); line-height: 1.4; }
+.meas-field-warn  { font-size: 11px; color: var(--color-medium); margin-top: 2px; min-height: 14px; }
+
+/* =============================================
+   VITALS RESULT CARD
+   ============================================= */
+.result-step-badge--meas {
+  background: #EEF0FF;
+  color: #3838A8;
+}
+
+.vitals-flags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+
+.vitals-flag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vitals-flag::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.flag-high { background: var(--color-high-bg);   color: var(--color-high);   }
+.flag-med  { background: var(--color-medium-bg); color: var(--color-medium); }
+.flag-ok   { background: var(--color-low-bg);    color: var(--color-low);    }
+
+.vitals-summary-text {
+  font-size: 12px;
+  color: var(--color-text-3);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-sm);
+  line-height: 1.5;
+}
+
 /* Textarea */
 textarea {
   width: 100%;
@@ -912,4 +1098,11 @@ code {
   .btn-primary    { width: 100%; justify-content: center; }
   .steps-bar      { gap: 0; }
   .step-label     { display: none; }
+  .focus-btn-row  { grid-template-columns: 1fr 1fr; }
+  .meas-grid      { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 380px) {
+  .focus-btn-row { grid-template-columns: 1fr; }
+  .meas-grid     { grid-template-columns: 1fr; }
 }
